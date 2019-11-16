@@ -3,3 +3,4 @@ JavaScriptSamples
 favicon.ico
 index.cgi
 *.o
+!.wibs_data/dummy.txt
