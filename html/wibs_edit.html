@@ -1,0 +1,258 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<HTML>
+<HEAD>
+	<META http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+	<META http-equiv="Content-Script-Type" content="text/javascript"/>
+	<TITLE>WIBS</TITLE>
+	<SCRIPT>window.onerror = function(msg,file,line){alert(msg+"\n"+file+':'+line);return false;}</SCRIPT>
+	<SCRIPT type="text/javascript" language="JavaScript" src="js/afllib.js"></SCRIPT>
+	<SCRIPT type="text/javascript" language="JavaScript" src="js/wibs.js"></SCRIPT>
+</HEAD>
+<BODY>
+<SCRIPT>
+WIBS.createEditWindow = function(id)
+{
+	if(this.frame)
+	{
+		this.frame.close();
+	}
+
+	//データの更新
+	function onSubmit()
+	{
+		var postData = Array();
+		postData['message_id'] = msgID;
+		postData['title'] = title.getText();
+		postData['message_type'] = msgMessageType;
+		postData['title_type'] = msgTitleType;
+		postData['tree_type'] = msgTreeType;
+		postData['code'] = msgCode;
+		postData['priority'] = msgPriority;
+		postData['message'] = edit.getValue();
+		postData['enable'] = this.__index;
+
+		AFL.recvHttpTable(getURL()+"?cmd=write_message",null,null,postData);
+		opener.WIBS.loadTree(msgID);
+	}
+	var t = this;
+	this.frame = AFL.createWindow();
+	frame = this.frame;
+	frame.setChildStyle('CLIENT');
+	frame.onClose = function()
+	{
+		t.frame = null;
+	}
+	frame.setSize(640,480);
+	frame.setAlpha(90);
+	
+	//パネルの作成
+	var panel = AFL.createPanel();
+	panel.setChildStyle('TOP');
+	frame.addChild(panel);
+	var edit = WIBS.createHtmlEditView();
+	frame.addChild(edit);
+	
+
+	edit.enableItem(0,false);
+	
+	var msgID = 0;
+	var msgTitleType = 0;
+	var msgMessageType = 0;
+	var msgTreeType = 0;
+	var msgCode = ',';
+	var msgPriority = 10;
+	var msgDate = '';
+	var msgParentID = 0;
+
+	//パネルへボタンの追加
+	//設定ボタン
+	var button = AFL.createButton();
+	button.setChildStyle('LEFT');
+	panel.addChild(button);
+	button.setText('設定',true);
+	button.__index = 1;
+	button.onclick = onSubmit;
+	//非表示ボタン
+	var button = AFL.createButton();
+	button.setChildStyle('LEFT');
+	panel.addChild(button);
+	button.setText('非表示',true);
+	button.onclick = onSubmit;
+	button.__index = 0;
+
+	var button = AFL.createButton();
+	button.setChildStyle('LEFT');
+	panel.addChild(button);
+	button.setText('次',true);
+	button.onclick = function()
+	{
+		var url;
+		url = AFL.sprintf("?cmd=create_message&message_id=%d&option=%d&priority=%d",msgParentID,msgTreeType==0?0:2,Number(msgPriority)+1);
+		id = AFL.recvHttpData(getURL()+url);
+		if(id > 0)
+		{
+			WIBS.createEditWindow(id);
+			opener.WIBS.loadTree(id);
+		}
+	}
+
+	
+	var msgType = {0:'HTML',1:'TEXT',2:'TABLE'};
+	var msgButton = AFL.createButton();
+	msgButton.setWidth(64);
+	msgButton.setChildStyle('LEFT');
+	panel.addChild(msgButton);
+	msgButton.onclick = function()
+	{
+		var node = AFL.createSelect();
+		for(var i in msgType)
+			node.addItem(msgType[i],i);
+		node.setPos(this.getAbsX(),buttonTitle.getAbsY());
+		node.show();
+		node.onItemClick = function(value)
+		{
+			setMessageType(value);
+		}
+	}
+	function setMessageType(value)
+	{
+		msgMessageType = value;
+		msgButton.setText(msgType[value]);
+		if(value == 0)
+		{
+			edit.enableItem(0,true);
+			edit.selectItem(0);
+		}
+		else
+		{
+			edit.enableItem(0,false);
+			edit.selectItem(1);
+		}
+	}
+	setMessageType(0);
+
+
+	//削除ボタン
+	var button = AFL.createButton();
+	button.setChildStyle('RIGHT');
+	panel.addChild(button);
+	button.setText('削除',true);
+	button.onclick = function()
+	{
+		var url = AFL.sprintf("?cmd=delete_message&message_id=%d",msgID);
+		AFL.recvHttpData(getURL()+url);
+		window.close();
+		opener.WIBS.loadTree(msgParentID);
+	}
+
+	var dateText = AFL.createWindow();
+	dateText.setChildStyle('RIGHT');
+	dateText.setWidth(160);
+	panel.addChild(dateText);
+	
+	//パネルの作成
+	var panel = AFL.createPanel();
+	panel.setChildStyle('TOP');
+	frame.addChild(panel);
+
+	//タイプ
+	var treeType = {0:'外部',1:'内部'};
+	var treeButton = AFL.createButton();
+	treeButton.setWidth(64);
+	treeButton.setChildStyle('LEFT');
+	panel.addChild(treeButton);
+	treeButton.setText(treeType[0]);
+	treeButton.onclick = function()
+	{
+		var node = AFL.createSelect();
+		for(var i in treeType)
+			node.addItem(treeType[i],i);
+		node.setPos(this.getAbsX(),buttonTitle.getAbsY());
+		node.show();
+		node.onItemClick = function(value)
+		{
+			setTreeType(value);
+		}
+	}
+	setTreeType(0);
+	function setTreeType(value)
+	{
+		msgTreeType = value;
+		treeButton.setText(treeType[value]);
+	}
+
+
+	var titleType = {0:'トップ',1:'サブ',2:'シンプル',3:'非表示'};
+	var buttonTitle = AFL.createButton();
+	buttonTitle.setChildStyle('LEFT');
+	panel.addChild(buttonTitle);
+	buttonTitle.setText('TITLE:'+titleType[0]);
+	buttonTitle.setWidth(128);
+	buttonTitle.onclick = function()
+	{
+		var node = AFL.createSelect();
+		for(var i in titleType)
+			node.addItem(titleType[i],i);
+		node.setPos(buttonTitle.getAbsX(),buttonTitle.getAbsY());
+		node.show();
+		node.onItemClick = function(value)
+		{
+			setTitleType(value);
+		}
+	}
+	setTitleType(0);
+	function setTitleType(value)
+	{
+		msgTitleType = value;
+		buttonTitle.setText('TITLE:'+titleType[value]);
+	}
+
+
+	var title = AFL.createTextBox();
+	title.setChildStyle('CLIENT');
+	panel.addChild(title);
+	
+	
+	function onLoad(datas)
+	{
+		var data = datas[0];
+		if(!data)
+			return;
+		
+		msgParentID = data['parent_id'];
+		msgID = data['message_id'];
+		msgTitle = data['title'];
+		msgTitleType = data['title_type'];
+		msgMessageType = data['message_type'];
+		msgTreeType = data['tree_type'];
+		msgCode = data['code'];
+		msgPriority = data['priority'];
+		msgDate = data['date'];
+		msgMessage = data['message'];
+		
+		setTitleType(msgTitleType);
+		setTreeType(msgTreeType);
+		title.setText(msgTitle);
+		setMessageType(msgMessageType);
+		edit.setValue(msgMessage);
+		dateText.innerHTML = msgDate;
+	}
+	frame.load = function(id)
+	{
+		if(id == null)
+		{
+			id = opener.WIBS.messageID;
+		}
+		AFL.recvHttpTable(getURL(),onLoad,{'cmd':'message','mid':id,'e':1});
+	}
+	if(id)
+		frame.load(id);
+	frame.show();
+	AFL.layoutWindow();
+	return frame;
+}
+
+AFL.init();
+win = WIBS.createEditWindow();
+opener.ChildOnLoad()
+</SCRIPT>
